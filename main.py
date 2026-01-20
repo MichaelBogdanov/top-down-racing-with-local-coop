@@ -29,7 +29,8 @@ PLAYER_WIDTH, PLAYER_HEIGHT = 80, 40  # Размеры машин игроков
 ENEMY_WIDTH, ENEMY_HEIGHT = 80, 40  # Размеры остальных машин
 ROAD_WIDTH = WIDTH // 2  # Ширина дороги каждого
 CAR_SPEED = 5
-FINISH = 1_000
+is_message = False
+message = ""
 
 # Настройки экрана
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -95,7 +96,6 @@ class Player:
         score = self.score_font.render(str(int(self.score)), True, (255, 255, 255))
         screen.blit(score, (10 + (self.rect.x > WIDTH / 2) * (WIDTH / 2 + 50), 10))
 
-
 # Класс встречных машин
 class Enemy:
     def __init__(self, x):
@@ -120,38 +120,26 @@ class Enemy:
     def draw(self):
         screen.blit(self.image, self.rect)
 
-
-# Функция для генерации позиции встречной машины
-def generate_enemy_position(occupied_positions):
-    # Позиции X для возможного появления машины (каждые 50 пикселей)
-    # Первый список для первой дороги, а второй для второй дороги
-    spawn_points_x = [i - 12 for i in range(0, 350, 50)] + [i - 12 for i in range(450, 800, 50)]
-    # Цикл генерации позиции
-    while True:
-        # Генерация случайной позиции на дороге
-        x = random.choice(spawn_points_x)
-        # Проверка свободна ли позиция
-        if x not in occupied_positions:
-            # Если свободна, добавляем в список занятых позиций
-            occupied_positions.add(x)
-            # И выходим из функции (и цикла)
-            return x
-        # Если нет, цикл повторяет генерацию новой случайной позиции, пока не найдёт свободную
-
-
-# Функция для отображения сообщения о проигрыше
-def display_message(text):
-    screen.fill((255, 255, 255))  # Белый фон
-    message_surface = pygame.font.Font(None, 64).render(text, True, (0, 0, 0))
-    message_rect = message_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
-    screen.blit(message_surface, message_rect)
-    pygame.display.flip()
-    pygame.time.delay(2000)  # Задержка на 2 секунды
-
+    # Функция для генерации позиции встречной машины
+    def generate_position(occupied_positions):
+        # Позиции X для возможного появления машины (каждые 50 пикселей)
+        # Первый список для первой дороги, а второй для второй дороги
+        spawn_points_x = [i - 12 for i in range(0, 350, 50)] + [i - 12 for i in range(450, 800, 50)]
+        # Цикл генерации позиции
+        while True:
+            # Генерация случайной позиции на дороге
+            x = random.choice(spawn_points_x)
+            # Проверка свободна ли позиция
+            if x not in occupied_positions:
+                # Если свободна, добавляем в список занятых позиций
+                occupied_positions.add(x)
+                # И выходим из функции (и цикла)
+                return x
+            # Если нет, цикл повторяет генерацию новой случайной позиции, пока не найдёт свободную
 
 # Основная функция игры
 def main():
-    global playlist_index
+    global playlist_index, is_message, message
     clock = pygame.time.Clock()
 
     player1 = Player(0 + PLAYER_HEIGHT // 2)  # Игрок 1
@@ -178,6 +166,8 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
+            elif event.type == pygame.KEYDOWN and is_message:
+                is_message = False
 
         # Проверка на включение следующей песни, когда закончилась прошлая
         if not pygame.mixer.music.get_busy():
@@ -185,6 +175,18 @@ def main():
             playlist_index %= len(playlist)
             pygame.mixer.music.load(playlist[playlist_index])
             pygame.mixer.music.play()
+
+        # Вывод сообщения
+        if is_message:
+            screen.fill((255, 255, 255))  # Белый фон
+            message_surface = pygame.font.Font(None, 64).render(message, True, (0, 0, 0))
+            message_rect = message_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 32))
+            screen.blit(message_surface, message_rect)
+            hint_surface = pygame.font.Font(None, 64).render("(Нажмите любую клавишу)", True, (0, 0, 0))
+            hint_rect = hint_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 32))
+            screen.blit(hint_surface, hint_rect)
+            pygame.display.flip()
+            continue
 
         # Заполнение игрового окна текстурами дороги
         texture_y += 5
@@ -199,7 +201,7 @@ def main():
 
         # Генерация врагов
         if random.randint(1, FPS) <= 2:  # Примерная частота появления врагов (2 врага/сек)
-            enemy_position = generate_enemy_position(occupied_positions)
+            enemy_position = Enemy.generate_position(occupied_positions)
             enemies.append(Enemy(enemy_position))
 
         # Движение врагов и проверка на столкновение
@@ -208,14 +210,14 @@ def main():
             if enemy.rect.y > HEIGHT:
                 enemies.remove(enemy)
                 occupied_positions.remove(enemy.rect.x - ENEMY_HEIGHT // 2)  # Освобождаем позицию
-            
             if enemy.rect.colliderect(player1.rect):
-                display_message(f"{player1.name} проиграл!")
+                message = f"{player1.name} проиграл!"
+                is_message = True
                 return 0 # Завершение текущей игры и выход из функции
             elif enemy.rect.colliderect(player2.rect):
-                display_message(f"{player2.name} проиграл!")
+                message = f"{player2.name} проиграл!"
+                is_message = True
                 return 0 # Завершение текущей игры и выход из функции
-
             enemy.draw()
 
         # Управление игроками
